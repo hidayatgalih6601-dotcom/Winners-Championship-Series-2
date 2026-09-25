@@ -120,12 +120,12 @@
     };
 
     const generateMatches = (teams) => [
-      { id: 1, home: teams[0].id, away: teams[1].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
-      { id: 2, home: teams[2].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
-      { id: 3, home: teams[0].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
-      { id: 4, home: teams[1].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
-      { id: 5, home: teams[0].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
-      { id: 6, home: teams[1].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 1, home: teams[0].id, away: teams[1].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
+      { id: 2, home: teams[2].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
+      { id: 3, home: teams[0].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
+      { id: 4, home: teams[1].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
+      { id: 5, home: teams[0].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
+      { id: 6, home: teams[1].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' },
     ];
 
     const initialMatches = {
@@ -385,16 +385,21 @@
 
       const handleSimulateMatches = () => {
         if (!isAdmin) return;
+        const statuses = ['Waiting', 'On Game', 'FULL TIME'];
         const simulated = {};
         Object.keys(matches).forEach(group => {
-          simulated[group] = matches[group].map(m => ({
-            ...m,
-            homeScore: Math.floor(Math.random() * 4).toString(),
-            awayScore: Math.floor(Math.random() * 4).toString(),
-            homeCards: Math.floor(Math.random() * 3).toString(),
-            awayCards: Math.floor(Math.random() * 3).toString(),
-            status: Math.random() > 0.5 ? 'FULL TIME' : 'On Game'
-          }));
+          simulated[group] = matches[group].map(m => {
+            const randStatus = statuses[Math.floor(Math.random() * statuses.length)];
+            const hasScore = randStatus !== 'Waiting';
+            return {
+              ...m,
+              homeScore: hasScore ? Math.floor(Math.random() * 4).toString() : '',
+              awayScore: hasScore ? Math.floor(Math.random() * 4).toString() : '',
+              homeCards: hasScore ? Math.floor(Math.random() * 3).toString() : '',
+              awayCards: hasScore ? Math.floor(Math.random() * 3).toString() : '',
+              status: randStatus
+            };
+          });
         });
         setMatches(simulated);
         showToast("🎲 Semua skor, status & kartu kuning berhasil disimulasikan!");
@@ -404,11 +409,11 @@
         if (!isAdmin) return;
         const resetM = {};
         Object.keys(matches).forEach(group => {
-          resetM[group] = matches[group].map(m => ({ ...m, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' }));
+          resetM[group] = matches[group].map(m => ({ ...m, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'Waiting' }));
         });
         setMatches(resetM);
         setKnockout(initialKnockout);
-        showToast("🧹 Seluruh skor & kartu berhasil direset!");
+        showToast("🧹 Seluruh skor & kartu berhasil direset ke mode Waiting!");
       };
 
       const handleAddScorer = () => {
@@ -847,7 +852,9 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                           const awayClub = clubs[groupName]?.find(t => t.id === match.away);
                           if (!homeClub || !awayClub) return null;
 
-                          const isFullTime = match.status === 'FULL TIME';
+                          const currentStatus = match.status || 'Waiting';
+                          const isFullTime = currentStatus === 'FULL TIME';
+                          const isOnGame = currentStatus === 'On Game';
 
                           return (
                             <div key={match.id} className="bg-slate-900/90 hover:bg-slate-950/80 rounded-xl p-2.5 border border-slate-700/60 flex flex-col gap-1.5 transition-colors shadow-inner">
@@ -908,18 +915,21 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                   )}
                                 </div>
 
-                                {/* Bagian Status Mode Admin & Penonton */}
+                                {/* Bagian Status Pertandingan: Waiting, On Game, FULL TIME */}
                                 <div className="flex items-center justify-center w-[30%]">
                                   {isAdmin ? (
                                     <select
-                                      value={match.status || 'On Game'}
+                                      value={currentStatus}
                                       onChange={(e) => handleScoreChange(groupName, match.id, 'status', e.target.value)}
                                       className={`text-[10px] font-bold px-1.5 py-0.5 rounded outline-none border cursor-pointer ${
                                         isFullTime 
                                           ? 'bg-red-950/80 text-red-400 border-red-600/50' 
-                                          : 'bg-emerald-950/80 text-emerald-400 border-emerald-600/50'
+                                          : isOnGame 
+                                            ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/50' 
+                                            : 'bg-slate-800 text-slate-400 border-slate-600/50'
                                       }`}
                                     >
+                                      <option value="Waiting" className="bg-slate-900 text-slate-300">⚪ Waiting</option>
                                       <option value="On Game" className="bg-slate-900 text-emerald-400">🟢 On Game</option>
                                       <option value="FULL TIME" className="bg-slate-900 text-red-400">🔴 FULL TIME</option>
                                     </select>
@@ -927,9 +937,11 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                     <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${
                                       isFullTime 
                                         ? 'bg-red-950/80 text-red-400 border-red-600/40' 
-                                        : 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40 animate-pulse'
+                                        : isOnGame 
+                                          ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40 animate-pulse' 
+                                          : 'bg-slate-800/80 text-slate-400 border-slate-700'
                                     }`}>
-                                      {isFullTime ? '🔴 FULL TIME' : '🟢 ON GAME'}
+                                      {isFullTime ? '🔴 FULL TIME' : isOnGame ? '🟢 ON GAME' : '⚪ WAITING'}
                                     </span>
                                   )}
                                 </div>
