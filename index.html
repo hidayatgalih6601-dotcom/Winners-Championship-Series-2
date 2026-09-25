@@ -223,6 +223,26 @@
       const [chatInput, setChatInput] = useState('');
       const [isChatLoading, setIsChatLoading] = useState(false);
 
+      // Mengambil seluruh daftar nama tim peserta dari semua grup
+      const allTeamList = useMemo(() => {
+        const list = [];
+        Object.keys(clubs).forEach(group => {
+          clubs[group].forEach(team => {
+            if (team.name && team.name.trim() !== '') {
+              list.push(team.name.trim());
+            }
+          });
+        });
+        return list;
+      }, [clubs]);
+
+      // Set default tim pada form scorer jika belum ada
+      useEffect(() => {
+        if (!newScorer.team && allTeamList.length > 0) {
+          setNewScorer(prev => ({ ...prev, team: allTeamList[0] }));
+        }
+      }, [allTeamList]);
+
       const showToast = (msg) => {
         setToastMsg(msg);
         setTimeout(() => setToastMsg(null), 3000);
@@ -431,15 +451,16 @@
 
       const handleAddScorer = () => {
         if (!isAdmin) return;
-        if (!newScorer.name || !newScorer.goals) return;
+        if (!newScorer.name.trim() || !newScorer.goals) return;
+        const selectedTeam = newScorer.team || (allTeamList.length > 0 ? allTeamList[0] : '-');
         const newEntry = {
           id: Date.now(),
-          name: newScorer.name,
-          team: newScorer.team || '-',
+          name: newScorer.name.trim(),
+          team: selectedTeam,
           goals: parseInt(newScorer.goals, 10)
         };
         setTopScorers(prev => [...prev, newEntry].sort((a, b) => b.goals - a.goals));
-        setNewScorer({ name: '', team: '', goals: '' });
+        setNewScorer({ name: '', team: allTeamList[0] || '', goals: '' });
         showToast("⚽ Pencetak gol berhasil ditambahkan!");
       };
 
@@ -1156,11 +1177,24 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                         className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-500 flex-1 lg:w-36"
                         value={newScorer.name} onChange={(e) => setNewScorer({...newScorer, name: e.target.value})}
                       />
-                      <input 
-                        type="text" placeholder="Klub" 
-                        className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-500 flex-1 lg:w-28"
-                        value={newScorer.team} onChange={(e) => setNewScorer({...newScorer, team: e.target.value})}
-                      />
+                      
+                      {/* Form Pilihan Nama Tim secara Dropdown */}
+                      <select 
+                        className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-500 flex-1 lg:w-36 cursor-pointer"
+                        value={newScorer.team} 
+                        onChange={(e) => setNewScorer({...newScorer, team: e.target.value})}
+                      >
+                        {allTeamList.length > 0 ? (
+                          allTeamList.map((teamName, i) => (
+                            <option key={i} value={teamName} className="bg-slate-900 text-white">
+                              {teamName}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">- Tidak ada tim -</option>
+                        )}
+                      </select>
+
                       <input 
                         type="number" placeholder="Gol" min="1"
                         className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-500 w-20 text-center"
