@@ -119,7 +119,6 @@
       D: [{ id: 'D1', name: 'Bayern Munich' }, { id: 'D2', name: 'Dortmund' }, { id: 'D3', name: 'Leverkusen' }, { id: 'D4', name: 'RB Leipzig' }]
     };
 
-    // Fungsi generasi jadwal otomatis dinamis (untuk 3 atau 4 tim)
     const generateMatches = (teams) => {
       const matches = [];
       let matchId = 1;
@@ -223,7 +222,6 @@
       const [chatInput, setChatInput] = useState('');
       const [isChatLoading, setIsChatLoading] = useState(false);
 
-      // Mengambil seluruh daftar nama tim peserta dari semua grup
       const allTeamList = useMemo(() => {
         const list = [];
         Object.keys(clubs).forEach(group => {
@@ -236,7 +234,6 @@
         return list;
       }, [clubs]);
 
-      // Set default tim pada form scorer jika belum ada
       useEffect(() => {
         if (!newScorer.team && allTeamList.length > 0) {
           setNewScorer(prev => ({ ...prev, team: allTeamList[0] }));
@@ -330,7 +327,6 @@
         setStandings(newStandings);
       }, [matches, clubs]);
 
-      // Mengisi bagan Knockout otomatis dari Posisi 1 dan 2 Klasemen
       useEffect(() => {
         if (!standings.A || !standings.B || !standings.C || !standings.D) return;
 
@@ -492,7 +488,6 @@
         setTournamentName(tempTournamentName);
         setClubs(tempClubs);
 
-        // Buat ulang jadwal pertandingan jika jumlah/struktur tim berubah
         const updatedMatches = {};
         Object.keys(tempClubs).forEach(group => {
           updatedMatches[group] = generateMatches(tempClubs[group]);
@@ -602,7 +597,7 @@ Instructions:
         } catch (err) {
           console.error(err);
           setAiNewsText("Terjadi kesalahan koneksi saat memanggil Gemini API.");
-        } finally {
+        } fontally {
           setIsGeneratingNews(false);
         }
       };
@@ -886,7 +881,6 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                           </thead>
                           <tbody>
                             {standings[groupName] && standings[groupName].map((team, index) => {
-                              // Syarat Tampil Tulisan "Lolos": Peringkat 1/2 DAN sudah menyelesaikan seluruh pertandingan
                               const isQualified = index < 2 && team.played >= totalMatchesPerTeam && totalMatchesPerTeam > 0;
 
                               return (
@@ -1192,7 +1186,6 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                         value={newScorer.name} onChange={(e) => setNewScorer({...newScorer, name: e.target.value})}
                       />
                       
-                      {/* Dropdown Nama Tim */}
                       <select 
                         className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-amber-500 flex-1 lg:w-36 cursor-pointer"
                         value={newScorer.team} 
@@ -1282,7 +1275,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
             )}
           </div>
 
-          {/* Admin PIN Login Modal */}
+          {/* Admin PIN Login Modal (Tombol Reset PIN dihilangkan demi keamanan) */}
           {isPinModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
               <div className="bg-slate-800 rounded-2xl border border-amber-500/40 w-full max-w-md p-6 shadow-2xl text-center space-y-4">
@@ -1290,7 +1283,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                   🔐
                 </div>
                 <h2 className="text-xl font-bold text-white">Masuk Mode Admin (Panitia)</h2>
-                <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengubah skor dan pengaturan turnamen.<br/><span className="text-slate-500 text-[11px]">(PIN default: 1234)</span></p>
+                <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengubah skor dan pengaturan turnamen.</p>
                 
                 <input 
                   type="password" 
@@ -1301,31 +1294,19 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                   onKeyDown={(e) => e.key === 'Enter' && handleLoginAdmin()}
                 />
 
-                <div className="flex flex-col gap-2 pt-2">
-                  <div className="flex gap-2">
-                    <button onClick={() => setIsPinModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs">
-                      Batal
-                    </button>
-                    <button onClick={handleLoginAdmin} className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg">
-                      Buka Akses Admin
-                    </button>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setAdminPin(DEFAULT_ADMIN_PIN);
-                      localStorage.setItem('soccer_admin_pin', DEFAULT_ADMIN_PIN);
-                      showToast("🔄 PIN telah direset kembali ke default: 1234");
-                    }}
-                    className="text-xs text-amber-400 hover:text-amber-300 underline py-1 font-semibold"
-                  >
-                    Lupa PIN? Reset ke Default (1234)
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setIsPinModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs">
+                    Batal
+                  </button>
+                  <button onClick={handleLoginAdmin} className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg">
+                    Buka Akses Admin
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Settings Modal (Tambah/Hapus Tim per Grup) */}
+          {/* Settings Modal */}
           {isSettingsOpen && isAdmin && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
               <div className="bg-slate-800 rounded-2xl border border-slate-600 w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
