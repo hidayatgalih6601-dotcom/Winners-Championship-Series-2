@@ -46,7 +46,7 @@
     const { useState, useEffect, useRef, useMemo } = React;
 
     const apiKey = ""; // Canvas runtime automatically supplies the API Key
-    const DEFAULT_ADMIN_PIN = "1234"; // PIN default untuk membuka mode admin
+    const DEFAULT_ADMIN_PIN = "1234";
 
     async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
       try {
@@ -120,12 +120,12 @@
     };
 
     const generateMatches = (teams) => [
-      { id: 1, home: teams[0].id, away: teams[1].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
-      { id: 2, home: teams[2].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
-      { id: 3, home: teams[0].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
-      { id: 4, home: teams[1].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
-      { id: 5, home: teams[0].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
-      { id: 6, home: teams[1].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '' },
+      { id: 1, home: teams[0].id, away: teams[1].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 2, home: teams[2].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 3, home: teams[0].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 4, home: teams[1].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 5, home: teams[0].id, away: teams[3].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
+      { id: 6, home: teams[1].id, away: teams[2].id, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' },
     ];
 
     const initialMatches = {
@@ -150,12 +150,10 @@
     };
 
     function App() {
-      // Role & Access Mode
       const [isAdmin, setIsAdmin] = useState(false);
       const [pinInput, setPinInput] = useState('');
       const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
-      // Load stored state if available
       const [tournamentName, setTournamentName] = useState(() => {
         return localStorage.getItem('soccer_tournament_name') || 'Turnamen Sepakbola Utama';
       });
@@ -187,19 +185,17 @@
         return saved ? JSON.parse(saved) : initialKnockout;
       });
 
-      const [activeTab, setActiveTab] = useState('group'); // 'group', 'knockout', 'scorers'
+      const [activeTab, setActiveTab] = useState('group');
       const [toastMsg, setToastMsg] = useState(null);
 
       const [standings, setStandings] = useState({});
       const [newScorer, setNewScorer] = useState({ name: '', team: '', goals: '' });
 
-      // Settings Modal States
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
       const [tempTournamentName, setTempTournamentName] = useState(tournamentName);
       const [tempClubs, setTempClubs] = useState(clubs);
       const [newPinInput, setNewPinInput] = useState('');
 
-      // AI Modal & States
       const [isAiModalOpen, setIsAiModalOpen] = useState(false);
       const [aiActiveTab, setAiActiveTab] = useState('news');
       const [aiNewsText, setAiNewsText] = useState('');
@@ -220,7 +216,6 @@
         setTimeout(() => setToastMsg(null), 3000);
       };
 
-      // Save to localStorage
       useEffect(() => {
         localStorage.setItem('soccer_tournament_name', tournamentName);
         localStorage.setItem('soccer_clubs', JSON.stringify(clubs));
@@ -236,7 +231,7 @@
           setPinInput('');
           showToast("🔓 Berhasil masuk ke Mode Admin (Panitia)!");
         } else {
-          alert("PIN Salah! Hubungi panitia utama.");
+          showToast("❌ PIN Salah! Silakan coba lagi.");
         }
       };
 
@@ -303,7 +298,6 @@
         setStandings(newStandings);
       }, [matches, clubs]);
 
-      // Auto Populate Knockout Teams based on top 2 of each group
       useEffect(() => {
         if (!standings.A || !standings.B || !standings.C || !standings.D) return;
 
@@ -359,7 +353,7 @@
 
       const handleScoreChange = (group, matchId, type, value) => {
         if (!isAdmin) return;
-        if (value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > 99)) return;
+        if (type !== 'status' && value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > 99)) return;
         setMatches(prev => ({
           ...prev,
           [group]: prev[group].map(match => match.id === matchId ? { ...match, [type]: value } : match)
@@ -399,17 +393,18 @@
             awayScore: Math.floor(Math.random() * 4).toString(),
             homeCards: Math.floor(Math.random() * 3).toString(),
             awayCards: Math.floor(Math.random() * 3).toString(),
+            status: Math.random() > 0.5 ? 'FULL TIME' : 'On Game'
           }));
         });
         setMatches(simulated);
-        showToast("🎲 Semua skor & kartu kuning berhasil disimulasikan!");
+        showToast("🎲 Semua skor, status & kartu kuning berhasil disimulasikan!");
       };
 
       const handleResetScores = () => {
         if (!isAdmin) return;
         const resetM = {};
         Object.keys(matches).forEach(group => {
-          resetM[group] = matches[group].map(m => ({ ...m, homeScore: '', awayScore: '', homeCards: '', awayCards: '' }));
+          resetM[group] = matches[group].map(m => ({ ...m, homeScore: '', awayScore: '', homeCards: '', awayCards: '', status: 'On Game' }));
         });
         setMatches(resetM);
         setKnockout(initialKnockout);
@@ -585,11 +580,11 @@ Instructions:
             const url = URL.createObjectURL(wavBlob);
             setAudioUrl(url);
           } else {
-            alert("Gagal memuat audio siaran.");
+            showToast("⚠️ Gagal memuat audio siaran.");
           }
         } catch (err) {
           console.error(err);
-          alert("Gagal menghubungi layanan Gemini TTS.");
+          showToast("⚠️ Gagal menghubungi layanan Gemini TTS.");
         } finally {
           setIsGeneratingAudio(false);
         }
@@ -626,11 +621,11 @@ Instructions:
             setPosterUrl(imgData);
             showToast("🎨 Poster AI berhasil dibuat!");
           } else {
-            alert("Gagal membuat gambar poster.");
+            showToast("⚠️ Gagal membuat gambar poster.");
           }
         } catch (err) {
           console.error(err);
-          alert("Terjadi masalah saat membuat poster AI.");
+          showToast("⚠️ Terjadi masalah saat membuat poster AI.");
         } finally {
           setIsGeneratingPoster(false);
         }
@@ -729,7 +724,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                 {tournamentName}
               </h1>
               <p className="text-slate-400 text-xs md:text-sm max-w-2xl mx-auto">
-                {isAdmin ? '🔧 Anda berada di Mode Panitia: Dapat mengubah skor, kartu, dan nama tim.' : '👁️ Anda berada di Mode Penonton: Hasil klasemen otomatis dikunci dari perubahan.'}
+                {isAdmin ? '🔧 Anda berada di Mode Panitia: Dapat mengubah skor, kartu, status pertandingan, dan nama tim.' : '👁️ Anda berada di Mode Penonton: Hasil klasemen otomatis dikunci dari perubahan.'}
               </p>
             </header>
 
@@ -852,6 +847,8 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                           const awayClub = clubs[groupName]?.find(t => t.id === match.away);
                           if (!homeClub || !awayClub) return null;
 
+                          const isFullTime = match.status === 'FULL TIME';
+
                           return (
                             <div key={match.id} className="bg-slate-900/90 hover:bg-slate-950/80 rounded-xl p-2.5 border border-slate-700/60 flex flex-col gap-1.5 transition-colors shadow-inner">
                               <div className="flex items-center justify-between">
@@ -893,7 +890,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                               </div>
 
                               <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400 px-1">
-                                <div className="flex items-center gap-1 justify-end w-[42%]">
+                                <div className="flex items-center gap-1 justify-end w-[35%]">
                                   <span>Kartu 🟨</span>
                                   {isAdmin ? (
                                     <input 
@@ -910,8 +907,34 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-slate-600 font-mono text-[10px]">Fair Play</span>
-                                <div className="flex items-center gap-1 justify-start w-[42%]">
+
+                                {/* Bagian Status Mode Admin & Penonton */}
+                                <div className="flex items-center justify-center w-[30%]">
+                                  {isAdmin ? (
+                                    <select
+                                      value={match.status || 'On Game'}
+                                      onChange={(e) => handleScoreChange(groupName, match.id, 'status', e.target.value)}
+                                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded outline-none border cursor-pointer ${
+                                        isFullTime 
+                                          ? 'bg-red-950/80 text-red-400 border-red-600/50' 
+                                          : 'bg-emerald-950/80 text-emerald-400 border-emerald-600/50'
+                                      }`}
+                                    >
+                                      <option value="On Game" className="bg-slate-900 text-emerald-400">🟢 On Game</option>
+                                      <option value="FULL TIME" className="bg-slate-900 text-red-400">🔴 FULL TIME</option>
+                                    </select>
+                                  ) : (
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                                      isFullTime 
+                                        ? 'bg-red-950/80 text-red-400 border-red-600/40' 
+                                        : 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40 animate-pulse'
+                                    }`}>
+                                      {isFullTime ? '🔴 FULL TIME' : '🟢 ON GAME'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 justify-start w-[35%]">
                                   {isAdmin ? (
                                     <input 
                                       type="text"
@@ -1167,12 +1190,24 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                   onKeyDown={(e) => e.key === 'Enter' && handleLoginAdmin()}
                 />
 
-                <div className="flex gap-2 pt-2">
-                  <button onClick={() => setIsPinModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs">
-                    Batal (Tetap Penonton)
-                  </button>
-                  <button onClick={handleLoginAdmin} className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg">
-                    Buka Akses Admin
+                <div className="flex flex-col gap-2 pt-2">
+                  <div className="flex gap-2">
+                    <button onClick={() => setIsPinModalOpen(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs">
+                      Batal
+                    </button>
+                    <button onClick={handleLoginAdmin} className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg">
+                      Buka Akses Admin
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setAdminPin(DEFAULT_ADMIN_PIN);
+                      localStorage.setItem('soccer_admin_pin', DEFAULT_ADMIN_PIN);
+                      showToast("🔄 PIN telah direset kembali ke default: 1234");
+                    }}
+                    className="text-xs text-amber-400 hover:text-amber-300 underline py-1 font-semibold"
+                  >
+                    Lupa PIN? Reset ke Default (1234)
                   </button>
                 </div>
               </div>
@@ -1413,24 +1448,23 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
 
                       <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
                         <input 
-                          type="text" 
-                          placeholder="Tanyakan sesuatu tentang turnamen..."
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-purple-500"
+                          type="text"
+                          placeholder="Tanyakan skenario poin, fair play, atau prediksi..."
+                          className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-purple-500 outline-none"
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
                         />
                         <button 
                           onClick={handleSendChatMessage}
-                          disabled={isChatLoading || !chatInput.trim()}
-                          className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all"
+                          disabled={isChatLoading}
+                          className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md active:scale-95"
                         >
                           Kirim
                         </button>
                       </div>
                     </div>
                   )}
-
                 </div>
               </div>
             </div>
@@ -1440,9 +1474,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
       );
     }
 
-    const rootElement = document.getElementById('root');
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(<App />);
+    ReactDOM.render(<App />, document.getElementById('root'));
   </script>
 </body>
 </html>
