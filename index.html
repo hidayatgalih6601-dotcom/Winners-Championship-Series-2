@@ -878,6 +878,19 @@ Instructions:
         }
       };
 
+      const toggleFullscreen = async () => {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          } else {
+            await document.exitFullscreen();
+          }
+        } catch (err) {
+          console.warn('Fullscreen tidak tersedia:', err);
+          showToast('⚠️ Mode layar penuh tidak tersedia di browser ini.');
+        }
+      };
+
       const handleSendChatMessage = async () => {
         if (!chatInput.trim() || isChatLoading) return;
 
@@ -943,7 +956,15 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
             </div>
           )}
 
-          <div className="fixed top-4 right-4 z-20 flex items-center gap-2">
+          <div className="fixed top-4 right-4 z-20 flex items-center gap-2 flex-wrap justify-end max-w-[calc(100vw-2rem)]">
+            <button
+              onClick={toggleFullscreen}
+              className="bg-slate-800/90 hover:bg-slate-700 text-white px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl shadow-2xl flex items-center gap-2 transition-all font-bold active:scale-95 text-xs md:text-sm border border-slate-600"
+              title="Layar penuh"
+            >
+              <span>⛶</span> <span className="hidden sm:inline">Layar Penuh</span>
+            </button>
+
             {isAdmin ? (
               <button 
                 onClick={handleSwitchToViewer}
