@@ -15,6 +15,10 @@
   <!-- Babel Standalone -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- Firebase Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
   <style>
     .custom-scrollbar::-webkit-scrollbar {
       width: 8px;
@@ -46,6 +50,27 @@
     const { useState, useEffect, useRef, useMemo } = React;
 
     const apiKey = ""; // Canvas runtime automatically supplies the API Key
+
+    // ================= FIREBASE REALTIME =================
+    // Database URL dibuat mengikuti project Firebase pada screenshot.
+    // Jika Firebase Anda memakai URL region baru, ganti databaseURL di bawah
+    // dengan URL yang tampil di Firebase Console > Realtime Database > Data.
+    const firebaseConfig = {
+      // URL standar Firebase Realtime Database untuk project ini.
+      databaseURL: "https://winners-championship-series-2-default-rtdb.firebaseio.com"
+    };
+
+    let firebaseDb = null;
+    let firebaseEnabled = false;
+    try {
+      if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      if (window.firebase) {
+        firebaseDb = firebase.database();
+        firebaseEnabled = true;
+      }
+    } catch (err) {
+      console.error("Firebase init gagal:", err);
+    }
 
     async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
       try {
@@ -208,6 +233,10 @@
       const [newPinInput, setNewPinInput] = useState('');
 
       const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+      const [firebaseStatus, setFirebaseStatus] = useState(firebaseEnabled ? 'connecting' : 'offline');
+      const remoteLoadedRef = useRef(false);
+      const lastRemoteJsonRef = useRef('');
+      const saveTimerRef = useRef(null);
       const [aiActiveTab, setAiActiveTab] = useState('news');
       const [aiNewsText, setAiNewsText] = useState('');
       const [isGeneratingNews, setIsGeneratingNews] = useState(false);
@@ -245,6 +274,7 @@
         setTimeout(() => setToastMsg(null), 3000);
       };
 
+      // Simpan lokal sebagai cadangan + sinkronkan data turnamen ke Firebase.
       useEffect(() => {
         localStorage.setItem('soccer_tournament_name', tournamentName);
         localStorage.setItem('soccer_clubs', JSON.stringify(clubs));
@@ -252,7 +282,75 @@
         localStorage.setItem('soccer_top_scorers', JSON.stringify(topScorers));
         localStorage.setItem('soccer_knockout', JSON.stringify(knockout));
         localStorage.setItem('soccer_admin_pin', adminPin);
+
+        if (!firebaseEnabled || !firebaseDb || !remoteLoadedRef.current) return;
+
+        const payload = { tournamentName, clubs, matches, topScorers, knockout };
+        const json = JSON.stringify(payload);
+        if (json === lastRemoteJsonRef.current) return;
+
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+          firebaseDb.ref('tournament').set(payload)
+            .then(() => {
+              lastRemoteJsonRef.current = json;
+              setFirebaseStatus('online');
+            })
+            .catch(err => {
+              console.error('Firebase save gagal:', err);
+              setFirebaseStatus('error');
+              showToast('⚠️ Gagal menyimpan ke Firebase.');
+            });
+        }, 250);
+
+        return () => clearTimeout(saveTimerRef.current);
       }, [tournamentName, clubs, matches, topScorers, knockout, adminPin]);
+
+      // Listener realtime: perubahan dari HP/admin lain langsung masuk ke aplikasi ini.
+      useEffect(() => {
+        if (!firebaseEnabled || !firebaseDb) {
+          setFirebaseStatus('offline');
+          remoteLoadedRef.current = true;
+          return;
+        }
+
+        const ref = firebaseDb.ref('tournament');
+        const handleValue = (snapshot) => {
+          const data = snapshot.val();
+          if (!data) {
+            remoteLoadedRef.current = true;
+            setFirebaseStatus('online');
+            return;
+          }
+
+          const payload = {
+            tournamentName: data.tournamentName ?? tournamentName,
+            clubs: data.clubs ?? clubs,
+            matches: data.matches ?? matches,
+            topScorers: data.topScorers ?? topScorers,
+            knockout: data.knockout ?? knockout
+          };
+          const json = JSON.stringify(payload);
+          lastRemoteJsonRef.current = json;
+          remoteLoadedRef.current = true;
+
+          setTournamentName(payload.tournamentName);
+          setClubs(payload.clubs);
+          setMatches(payload.matches);
+          setTopScorers(payload.topScorers);
+          setKnockout(payload.knockout);
+          setFirebaseStatus('online');
+        };
+
+        const handleError = (error) => {
+          console.error('Firebase listener error:', error);
+          setFirebaseStatus('error');
+          remoteLoadedRef.current = true;
+        };
+
+        ref.on('value', handleValue, handleError);
+        return () => ref.off('value', handleValue);
+      }, []);
 
       const handleLoginAdmin = () => {
         if (pinInput === adminPin) {
@@ -510,7 +608,11 @@
           setMatches(initialMatches);
           setKnockout(initialKnockout);
           setAdminPin('1234');
-          localStorage.clear();
+          localStorage.removeItem('soccer_tournament_name');
+          localStorage.removeItem('soccer_clubs');
+          localStorage.removeItem('soccer_matches');
+          localStorage.removeItem('soccer_top_scorers');
+          localStorage.removeItem('soccer_knockout');
           setIsSettingsOpen(false);
           showToast("🔄 Data berhasil dikembalikan ke awal!");
         }
@@ -782,6 +884,18 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
           </div>
 
           <div className="max-w-7xl mx-auto pt-4 md:pt-6">
+            <div className="flex justify-center mb-4">
+              <div className={`text-[11px] font-bold px-3 py-1.5 rounded-full border ${
+                firebaseStatus === 'online' ? 'bg-emerald-950/70 text-emerald-400 border-emerald-700/50' :
+                firebaseStatus === 'connecting' ? 'bg-amber-950/70 text-amber-400 border-amber-700/50' :
+                firebaseStatus === 'error' ? 'bg-red-950/70 text-red-400 border-red-700/50' :
+                'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>
+                {firebaseStatus === 'online' ? '🟢 REAL-TIME AKTIF' :
+                 firebaseStatus === 'connecting' ? '🟡 Menghubungkan Firebase...' :
+                 firebaseStatus === 'error' ? '🔴 Firebase bermasalah' : '⚪ Mode lokal'}
+              </div>
+            </div>
             
             <header className="mb-8 text-center">
               {posterUrl && (
