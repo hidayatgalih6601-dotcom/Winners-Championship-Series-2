@@ -166,18 +166,10 @@
     };
 
     const generateMatches = (teams) => {
-      // Jadwal grup dibuat per ronde agar tidak ada tim bermain 3 pertandingan
-      // berturut-turut. Untuk 4 tim, pola tetap:
-      // Ronde 1: 1 vs 2, 3 vs 4
-      // Ronde 2: 1 vs 3, 2 vs 4
-      // Ronde 3: 1 vs 4, 2 vs 3
-      // Urutan ini juga sesuai pola yang diminta panitia.
-      const roundPairs = teams.length >= 4
-        ? [[0, 1], [2, 3], [0, 2], [1, 3], [0, 3], [1, 2]]
-        : teams.length === 3
-          ? [[0, 1], [2, 0], [1, 2]]
-          : [];
-
+      // Urutan pertandingan setiap grup:
+      // 1 vs 2, 3 vs 4, 1 vs 3, 2 vs 4, 1 vs 4, 2 vs 3.
+      // Pola ini diterapkan sama pada setiap grup.
+      const roundPairs = [[0, 1], [2, 3], [0, 2], [1, 3], [0, 3], [1, 2]];
       return roundPairs
         .filter(([i, j]) => teams[i] && teams[j])
         .map(([i, j], index) => ({
@@ -250,11 +242,6 @@
         return saved ? JSON.parse(saved) : initialKnockout;
       });
 
-      const [publicAccess, setPublicAccess] = useState(() => {
-        const saved = localStorage.getItem('soccer_public_access');
-        return saved === null ? true : saved === 'true';
-      });
-
       const [activeTab, setActiveTab] = useState('group');
       const [toastMsg, setToastMsg] = useState(null);
 
@@ -316,12 +303,11 @@
         localStorage.setItem('soccer_matches', JSON.stringify(matches));
         localStorage.setItem('soccer_top_scorers', JSON.stringify(topScorers));
         localStorage.setItem('soccer_knockout', JSON.stringify(knockout));
-        localStorage.setItem('soccer_public_access', String(publicAccess));
         localStorage.setItem('soccer_admin_pin', adminPin);
 
         if (!firebaseReady || !firebaseEnabled || !firebaseDb || !remoteLoadedRef.current) return;
 
-        const payload = { tournamentName, clubs, matches, topScorers, knockout, publicAccess };
+        const payload = { tournamentName, clubs, matches, topScorers, knockout };
         const json = JSON.stringify(payload);
         if (json === lastRemoteJsonRef.current) return;
 
@@ -340,7 +326,7 @@
         }, 250);
 
         return () => clearTimeout(saveTimerRef.current);
-      }, [tournamentName, clubs, matches, topScorers, knockout, publicAccess, adminPin, firebaseReady]);
+      }, [tournamentName, clubs, matches, topScorers, knockout, adminPin, firebaseReady]);
 
       // Listener realtime: perubahan dari HP/admin lain langsung masuk ke aplikasi ini.
       useEffect(() => {
@@ -373,8 +359,7 @@
                 clubs: data.clubs ?? clubs,
                 matches: data.matches ?? matches,
                 topScorers: data.topScorers ?? topScorers,
-                knockout: data.knockout ?? knockout,
-                publicAccess: data.publicAccess ?? true
+                knockout: data.knockout ?? knockout
               };
               const json = JSON.stringify(payload);
               lastRemoteJsonRef.current = json;
@@ -385,8 +370,6 @@
               setMatches(payload.matches);
               setTopScorers(payload.topScorers);
               setKnockout(payload.knockout);
-              setPublicAccess(payload.publicAccess);
-              localStorage.setItem('soccer_public_access', String(payload.publicAccess));
               setFirebaseStatus('online');
             };
 
@@ -429,18 +412,6 @@
       const handleSwitchToViewer = () => {
         setIsAdmin(false);
         showToast("👁️ Berada dalam Mode Penonton (Read-Only)");
-      };
-
-      const handleTogglePublicAccess = () => {
-        if (!isAdmin) return;
-        const next = !publicAccess;
-        const message = next
-          ? 'Buka kembali akses publik? Pengguna akan bisa melihat turnamen lagi.'
-          : 'Hentikan sharing? Pengguna akan melihat pesan bahwa turnamen sedang ditutup sementara.';
-        if (!window.confirm(message)) return;
-        setPublicAccess(next);
-        localStorage.setItem('soccer_public_access', String(next));
-        showToast(next ? '🟢 Sharing publik dibuka kembali.' : '🔴 Sharing publik dihentikan.');
       };
 
       useEffect(() => {
@@ -556,8 +527,7 @@
 
       const handleScoreChange = (group, matchId, type, value) => {
         if (!isAdmin) return;
-        const maxValue = 99;
-        if (type !== 'status' && value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > maxValue)) return;
+        if (type !== 'status' && value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > 99)) return;
         setMatches(prev => ({
           ...prev,
           [group]: prev[group].map(match => match.id === matchId ? { ...match, [type]: value } : match)
@@ -684,13 +654,11 @@
           setMatches(initialMatches);
           setKnockout(initialKnockout);
           setAdminPin('1234');
-          setPublicAccess(true);
           localStorage.removeItem('soccer_tournament_name');
           localStorage.removeItem('soccer_clubs');
           localStorage.removeItem('soccer_matches');
           localStorage.removeItem('soccer_top_scorers');
           localStorage.removeItem('soccer_knockout');
-          localStorage.removeItem('soccer_public_access');
           setIsSettingsOpen(false);
           showToast("🔄 Data berhasil dikembalikan ke awal!");
         }
@@ -927,16 +895,6 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
             </div>
           )}
 
-          {!publicAccess && !isAdmin && (
-            <div className="fixed inset-0 z-40 bg-slate-950 flex items-center justify-center p-6">
-              <div className="w-full max-w-md text-center bg-slate-900 border border-red-500/30 rounded-3xl p-8 shadow-2xl">
-                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-3xl">🛑</div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-white mb-3">Turnamen sedang ditutup sementara.</h1>
-                <p className="text-slate-400 text-sm md:text-base">Silakan kembali beberapa saat lagi.</p>
-              </div>
-            </div>
-          )}
-
           <div className="fixed top-4 right-4 z-20 flex items-center gap-2">
             {isAdmin ? (
               <button 
@@ -962,20 +920,12 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
             </button>
 
             {isAdmin && (
-              <>
-                <button 
-                  onClick={handleTogglePublicAccess}
-                  className={`${publicAccess ? 'bg-red-700 hover:bg-red-600 border-red-400/50' : 'bg-emerald-700 hover:bg-emerald-600 border-emerald-400/50'} text-white px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl shadow-2xl flex items-center gap-2 transition-all font-bold active:scale-95 text-xs md:text-sm border`}
-                >
-                  <span>{publicAccess ? '🛑' : '🟢'}</span> {publicAccess ? 'Stop Sharing' : 'Buka Sharing'}
-                </button>
-                <button 
-                  onClick={handleOpenSettings}
-                  className="bg-slate-800/90 hover:bg-slate-700 backdrop-blur border border-slate-600 text-white px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl shadow-2xl flex items-center gap-2 transition-all font-semibold active:scale-95 text-xs md:text-sm"
-                >
-                  <span>⚙️</span> Pengaturan
-                </button>
-              </>
+              <button 
+                onClick={handleOpenSettings}
+                className="bg-slate-800/90 hover:bg-slate-700 backdrop-blur border border-slate-600 text-white px-3.5 py-2 md:px-4 md:py-2.5 rounded-xl shadow-2xl flex items-center gap-2 transition-all font-semibold active:scale-95 text-xs md:text-sm"
+              >
+                <span>⚙️</span> Pengaturan
+              </button>
             )}
           </div>
 
@@ -1182,14 +1132,13 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                     </div>
                                   )}
 
-
                                   <div className="text-left w-[38%] text-xs md:text-sm font-bold truncate pl-2 text-white">
                                     {awayClub.name}
                                   </div>
                                 </div>
 
                                 <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px] text-slate-400 px-1">
-                                  <div className="flex items-center gap-1 justify-end w-[32%]">
+                                  <div className="flex items-center gap-1 justify-end w-[35%]">
                                     <span>Kartu 🟨</span>
                                     {isAdmin ? (
                                       <input 
@@ -1207,7 +1156,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                     )}
                                   </div>
 
-                                  <div className="flex items-center justify-center w-[36%]">
+                                  <div className="flex items-center justify-center w-[30%]">
                                     {isAdmin ? (
                                       <select
                                         value={currentStatus}
@@ -1237,7 +1186,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-1 justify-start w-[32%]">
+                                  <div className="flex items-center gap-1 justify-start w-[35%]">
                                     {isAdmin ? (
                                       <input 
                                         type="text"
