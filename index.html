@@ -166,23 +166,37 @@
     };
 
     const generateMatches = (teams) => {
-      const matches = [];
-      let matchId = 1;
+      const pairings = [];
+
+      // Buat semua pasangan pertandingan terlebih dahulu.
       for (let i = 0; i < teams.length; i++) {
         for (let j = i + 1; j < teams.length; j++) {
-          matches.push({
-            id: matchId++,
-            home: teams[i].id,
-            away: teams[j].id,
-            homeScore: '',
-            awayScore: '',
-            homeCards: '',
-            awayCards: '',
-            status: 'Waiting'
+          // Acak juga posisi kandang/tandang agar tim pertama tidak selalu tampil sebagai tuan rumah.
+          const flip = Math.random() < 0.5;
+          pairings.push({
+            home: flip ? teams[j].id : teams[i].id,
+            away: flip ? teams[i].id : teams[j].id
           });
         }
       }
-      return matches;
+
+      // Acak urutan pertandingan sehingga jadwal tiap grup tidak selalu dimulai
+      // dari tim/peringkat pertama (A1, B1, C1, dst.).
+      for (let i = pairings.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pairings[i], pairings[j]] = [pairings[j], pairings[i]];
+      }
+
+      return pairings.map((pair, index) => ({
+        id: index + 1,
+        home: pair.home,
+        away: pair.away,
+        homeScore: '',
+        awayScore: '',
+        homeCards: '',
+        awayCards: '',
+        status: 'Waiting'
+      }));
     };
 
     const initialMatches = {
