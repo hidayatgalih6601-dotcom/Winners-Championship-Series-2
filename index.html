@@ -52,25 +52,47 @@
     const apiKey = ""; // Canvas runtime automatically supplies the API Key
 
     // ================= FIREBASE REALTIME =================
-    // Database URL dibuat mengikuti project Firebase pada screenshot.
-    // Jika Firebase Anda memakai URL region baru, ganti databaseURL di bawah
-    // dengan URL yang tampil di Firebase Console > Realtime Database > Data.
-    const firebaseConfig = {
-      // URL standar Firebase Realtime Database untuk project ini.
-      databaseURL: "https://winners-championship-series-2-default-rtdb.firebaseio.com"
-    };
+    // Project Firebase: winners-championship-series-2
+    // Firebase bisa memakai URL .firebaseio.com atau URL regional .firebasedatabase.app.
+    // Kita coba URL regional Indonesia/Singapura lebih dulu, lalu URL standar sebagai cadangan.
+    const FIREBASE_DATABASE_URLS = [
+      "https://winners-championship-series-2-default-rtdb.asia-southeast1.firebasedatabase.app",
+      "https://winners-championship-series-2-default-rtdb.firebaseio.com"
+    ];
 
     let firebaseDb = null;
     let firebaseEnabled = false;
-    try {
-      if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-      if (window.firebase) {
-        firebaseDb = firebase.database();
-        firebaseEnabled = true;
+    let firebaseDatabaseUrl = FIREBASE_DATABASE_URLS[0];
+
+    async function connectFirebase() {
+      if (!window.firebase) throw new Error("Firebase SDK belum termuat");
+
+      for (const databaseURL of FIREBASE_DATABASE_URLS) {
+        try {
+          // Cek endpoint database dulu agar tidak berhenti di status "Menghubungkan".
+          const response = await fetch(databaseURL + "/.json", { cache: "no-store" });
+          if (!response.ok) continue;
+
+          if (firebase.apps.length) {
+            try { await firebase.app().delete(); } catch (_) {}
+          }
+
+          firebase.initializeApp({ databaseURL });
+          firebaseDb = firebase.database();
+          firebaseDatabaseUrl = databaseURL;
+          firebaseEnabled = true;
+          console.log("Firebase terhubung:", databaseURL);
+          return true;
+        } catch (err) {
+          console.warn("Gagal mencoba Firebase URL:", databaseURL, err);
+        }
       }
-    } catch (err) {
-      console.error("Firebase init gagal:", err);
+
+      firebaseEnabled = false;
+      return false;
     }
+
+    const firebaseConnectionPromise = connectFirebase();
 
     async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
       try {
@@ -233,7 +255,8 @@
       const [newPinInput, setNewPinInput] = useState('');
 
       const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-      const [firebaseStatus, setFirebaseStatus] = useState(firebaseEnabled ? 'connecting' : 'offline');
+      const [firebaseStatus, setFirebaseStatus] = useState('connecting');
+      const [firebaseReady, setFirebaseReady] = useState(false);
       const remoteLoadedRef = useRef(false);
       const lastRemoteJsonRef = useRef('');
       const saveTimerRef = useRef(null);
@@ -283,7 +306,7 @@
         localStorage.setItem('soccer_knockout', JSON.stringify(knockout));
         localStorage.setItem('soccer_admin_pin', adminPin);
 
-        if (!firebaseEnabled || !firebaseDb || !remoteLoadedRef.current) return;
+        if (!firebaseReady || !firebaseEnabled || !firebaseDb || !remoteLoadedRef.current) return;
 
         const payload = { tournamentName, clubs, matches, topScorers, knockout };
         const json = JSON.stringify(payload);
@@ -304,52 +327,76 @@
         }, 250);
 
         return () => clearTimeout(saveTimerRef.current);
-      }, [tournamentName, clubs, matches, topScorers, knockout, adminPin]);
+      }, [tournamentName, clubs, matches, topScorers, knockout, adminPin, firebaseReady]);
 
       // Listener realtime: perubahan dari HP/admin lain langsung masuk ke aplikasi ini.
       useEffect(() => {
-        if (!firebaseEnabled || !firebaseDb) {
-          setFirebaseStatus('offline');
-          remoteLoadedRef.current = true;
-          return;
-        }
+        let alive = true;
+        let ref = null;
 
-        const ref = firebaseDb.ref('tournament');
-        const handleValue = (snapshot) => {
-          const data = snapshot.val();
-          if (!data) {
-            remoteLoadedRef.current = true;
-            setFirebaseStatus('online');
-            return;
-          }
+        firebaseConnectionPromise
+          .then((ok) => {
+            if (!alive) return;
+            if (!ok || !firebaseDb) {
+              setFirebaseStatus('error');
+              remoteLoadedRef.current = true;
+              return;
+            }
 
-          const payload = {
-            tournamentName: data.tournamentName ?? tournamentName,
-            clubs: data.clubs ?? clubs,
-            matches: data.matches ?? matches,
-            topScorers: data.topScorers ?? topScorers,
-            knockout: data.knockout ?? knockout
-          };
-          const json = JSON.stringify(payload);
-          lastRemoteJsonRef.current = json;
-          remoteLoadedRef.current = true;
+            setFirebaseReady(true);
+            ref = firebaseDb.ref('tournament');
 
-          setTournamentName(payload.tournamentName);
-          setClubs(payload.clubs);
-          setMatches(payload.matches);
-          setTopScorers(payload.topScorers);
-          setKnockout(payload.knockout);
-          setFirebaseStatus('online');
+            const handleValue = (snapshot) => {
+              if (!alive) return;
+              const data = snapshot.val();
+              if (!data) {
+                remoteLoadedRef.current = true;
+                setFirebaseStatus('online');
+                return;
+              }
+
+              const payload = {
+                tournamentName: data.tournamentName ?? tournamentName,
+                clubs: data.clubs ?? clubs,
+                matches: data.matches ?? matches,
+                topScorers: data.topScorers ?? topScorers,
+                knockout: data.knockout ?? knockout
+              };
+              const json = JSON.stringify(payload);
+              lastRemoteJsonRef.current = json;
+              remoteLoadedRef.current = true;
+
+              setTournamentName(payload.tournamentName);
+              setClubs(payload.clubs);
+              setMatches(payload.matches);
+              setTopScorers(payload.topScorers);
+              setKnockout(payload.knockout);
+              setFirebaseStatus('online');
+            };
+
+            const handleError = (error) => {
+              console.error('Firebase listener error:', error);
+              setFirebaseStatus('error');
+              remoteLoadedRef.current = true;
+            };
+
+            ref.on('value', handleValue, handleError);
+
+            // Simpan handler agar cleanup dapat melepas listener.
+            ref.__handleValue = handleValue;
+          })
+          .catch((error) => {
+            console.error('Firebase connection error:', error);
+            if (alive) {
+              setFirebaseStatus('error');
+              remoteLoadedRef.current = true;
+            }
+          });
+
+        return () => {
+          alive = false;
+          if (ref && ref.__handleValue) ref.off('value', ref.__handleValue);
         };
-
-        const handleError = (error) => {
-          console.error('Firebase listener error:', error);
-          setFirebaseStatus('error');
-          remoteLoadedRef.current = true;
-        };
-
-        ref.on('value', handleValue, handleError);
-        return () => ref.off('value', handleValue);
       }, []);
 
       const handleLoginAdmin = () => {
