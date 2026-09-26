@@ -46,7 +46,6 @@
     const { useState, useEffect, useRef, useMemo } = React;
 
     const apiKey = ""; // Canvas runtime automatically supplies the API Key
-    const DEFAULT_ADMIN_PIN = "1234";
 
     async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
       try {
@@ -174,8 +173,9 @@
         return saved ? JSON.parse(saved) : defaultClubs;
       });
 
+      // Default PIN diset ke 1234
       const [adminPin, setAdminPin] = useState(() => {
-        return localStorage.getItem('soccer_admin_pin') || DEFAULT_ADMIN_PIN;
+        return localStorage.getItem('soccer_admin_pin') || '1234';
       });
 
       const [matches, setMatches] = useState(() => {
@@ -251,7 +251,8 @@
         localStorage.setItem('soccer_matches', JSON.stringify(matches));
         localStorage.setItem('soccer_top_scorers', JSON.stringify(topScorers));
         localStorage.setItem('soccer_knockout', JSON.stringify(knockout));
-      }, [tournamentName, clubs, matches, topScorers, knockout]);
+        localStorage.setItem('soccer_admin_pin', adminPin);
+      }, [tournamentName, clubs, matches, topScorers, knockout, adminPin]);
 
       const handleLoginAdmin = () => {
         if (pinInput === adminPin) {
@@ -508,7 +509,7 @@
           setClubs(defaultClubs);
           setMatches(initialMatches);
           setKnockout(initialKnockout);
-          setAdminPin(DEFAULT_ADMIN_PIN);
+          setAdminPin('1234');
           localStorage.clear();
           setIsSettingsOpen(false);
           showToast("🔄 Data berhasil dikembalikan ke awal!");
@@ -597,7 +598,7 @@ Instructions:
         } catch (err) {
           console.error(err);
           setAiNewsText("Terjadi kesalahan koneksi saat memanggil Gemini API.");
-        } fontally {
+        } finally {
           setIsGeneratingNews(false);
         }
       };
@@ -1275,7 +1276,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
             )}
           </div>
 
-          {/* Admin PIN Login Modal (Tombol Reset PIN dihilangkan demi keamanan) */}
+          {/* Admin PIN Login Modal */}
           {isPinModalOpen && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
               <div className="bg-slate-800 rounded-2xl border border-amber-500/40 w-full max-w-md p-6 shadow-2xl text-center space-y-4">
@@ -1283,7 +1284,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                   🔐
                 </div>
                 <h2 className="text-xl font-bold text-white">Masuk Mode Admin (Panitia)</h2>
-                <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengubah skor dan pengaturan turnamen.</p>
+                <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengubah skor dan pengaturan turnamen (PIN default: 1234).</p>
                 
                 <input 
                   type="password" 
