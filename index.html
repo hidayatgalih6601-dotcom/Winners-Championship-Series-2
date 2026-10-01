@@ -527,7 +527,7 @@
         return thirdPlaceList;
       }, [standings, activeGroupKeys]);
 
-      // Penentuan Otomatis Tim yang Lolos Ke QF (4 Grup vs 3 Grup)
+      // Penentuan Otomatis Tim yang Lolos (4 Grup vs 3 Grup vs 2 Grup)
       useEffect(() => {
         if (activeGroupKeys.length === 4) {
           if (!standings.A || !standings.B || !standings.C || !standings.D) return;
@@ -573,6 +573,24 @@
               { ...prev.qf[1], home: winner2, away: runner3 },
               { ...prev.qf[2], home: winner3, away: runner1 },
               { ...prev.qf[3], home: runner2, away: best3_1 },
+            ]
+          }));
+        } else if (activeGroupKeys.length === 2) {
+          const gKeys = activeGroupKeys; // misal A, B
+          const g1 = gKeys[0] || 'A';
+          const g2 = gKeys[1] || 'B';
+
+          const a1 = standings[g1]?.[0]?.name || `Juara Grup ${g1}`;
+          const a2 = standings[g1]?.[1]?.name || `Runner-up ${g1}`;
+          const b1 = standings[g2]?.[0]?.name || `Juara Grup ${g2}`;
+          const b2 = standings[g2]?.[1]?.name || `Runner-up ${g2}`;
+
+          // Untuk sistem 2 Grup, Juara 1 & 2 langsung ke Semifinal
+          setKnockout(prev => ({
+            ...prev,
+            sf: [
+              { ...prev.sf[0], home: a1, away: b2 },
+              { ...prev.sf[1], home: b1, away: a2 }
             ]
           }));
         }
@@ -841,7 +859,7 @@ Instructions:
 - Write in Indonesian language ("Bahasa Indonesia").
 - Include a bold catchy headline.
 - Highlight group leaders, standout performances, fair play record, and intense qualification battles.
-- Note: Format contains ${activeGroupKeys.length} groups. ${activeGroupKeys.length === 3 ? 'Top 2 teams from each group + 2 best 3rd placed teams qualify for Quarter Finals.' : 'Top 2 teams qualify for Quarter Finals.'}
+- Note: Format contains ${activeGroupKeys.length} groups. ${activeGroupKeys.length === 2 ? 'Top 2 teams from each group qualify directly for Semifinals (No Quarter Finals).' : activeGroupKeys.length === 3 ? 'Top 2 teams from each group + 2 best 3rd placed teams qualify for Quarter Finals.' : 'Top 2 teams qualify for Quarter Finals.'}
 - Mention top scorers if relevant.
 - Keep the style engaging, professional, and full of football enthusiasm!`;
 
@@ -970,7 +988,7 @@ Instructions:
           }
         } catch (err) {
           console.warn('Fullscreen tidak tersedia:', err);
-          showToast('⚠️ Mode layar penuh tidak tersedia di browser ini.');
+          showToast('⚠️️ Mode layar penuh tidak tersedia di browser ini.');
         }
       };
 
@@ -990,6 +1008,7 @@ ${getTournamentContext()}
 Rules Kelolosan:
 - Jika 4 Grup: Juara (1) & Runner-up (2) dari masing-masing grup lolos ke Perempat Final.
 - Jika 3 Grup: Juara (1) & Runner-up (2) dari masing-masing grup (6 tim) + 2 tim Peringkat 3 Terbaik (total 8 tim) lolos ke Perempat Final.
+- Jika 2 Grup: Juara (1) & Runner-up (2) dari masing-masing grup langsung lolos ke Semifinal (tanpa Perempat Final).
 - Jika ada poin & SG sama, tim dengan kartu kuning lebih sedikit berhak di atas (Fair Play).
 Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim, atau strategi!`;
 
@@ -1114,7 +1133,11 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                 {tournamentName}
               </h1>
               <p className="text-slate-400 text-xs md:text-sm max-w-2xl mx-auto">
-                Format: <span className="text-amber-400 font-bold">{activeGroupKeys.length} Grup</span> {activeGroupKeys.length === 3 ? '(Juara 1 & 2 + 2 Tim Peringkat 3 Terbaik Lolos ke Perempat Final)' : '(Juara 1 & 2 Masing-Masing Grup Lolos)'}
+                Format: <span className="text-amber-400 font-bold">{activeGroupKeys.length} Grup</span> {
+                  activeGroupKeys.length === 2 ? '(Juara 1 & 2 Masing-Masing Grup Lolos Langsung ke Semifinal)' :
+                  activeGroupKeys.length === 3 ? '(Juara 1 & 2 + 2 Tim Peringkat 3 Terbaik Lolos ke Perempat Final)' :
+                  '(Juara 1 & 2 Masing-Masing Grup Lolos ke Perempat Final)'
+                }
               </p>
             </header>
 
@@ -1181,7 +1204,11 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                             GRUP {groupName}
                           </h2>
                           <span className="text-xs text-amber-400 font-mono bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-                            {totalTeamsInGroup} Klub {activeGroupKeys.length === 3 ? '(Lolos: Rank 1, 2 & Best 3rd)' : '(Lolos: Rank 1 & 2)'}
+                            {totalTeamsInGroup} Klub {
+                              activeGroupKeys.length === 2 ? '(Lolos: Rank 1 & 2 ke Semifinal)' :
+                              activeGroupKeys.length === 3 ? '(Lolos: Rank 1, 2 & Best 3rd)' :
+                              '(Lolos: Rank 1 & 2)'
+                            }
                           </span>
                         </div>
 
@@ -1221,7 +1248,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                                       {team.name}
                                       {isDirectQualified && (
                                         <span className="ml-1.5 text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-600/40 px-1.5 py-0.5 rounded font-bold animate-pulse-subtle">
-                                          Lolos
+                                          {activeGroupKeys.length === 2 ? 'Lolos Semifinal' : 'Lolos'}
                                         </span>
                                       )}
                                       {isBestThirdQualified && (
@@ -1443,55 +1470,61 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
               <div className="space-y-8">
                 <div className="bg-slate-800/90 rounded-2xl p-6 border border-slate-700 shadow-xl">
                   <h2 className="text-xl font-bold text-amber-400 mb-2 flex items-center gap-2">
-                    <span>🏆</span> Bagan Fase Gugur (Perempat Final)
+                    <span>🏆</span> Bagan Fase Gugur
                   </h2>
                   <p className="text-xs text-slate-400 mb-6">
-                    {activeGroupKeys.length === 3 
-                      ? 'Format 3 Grup: Juara (1) & Runner-up (2) dari tiap grup + 2 Tim Peringkat 3 Terbaik otomatis mengisi Perempat Final.'
-                      : 'Format 4 Grup: Juara (1) dan Runner-Up (2) dari masing-masing grup otomatis masuk ke bagan ini.'}
+                    {activeGroupKeys.length === 2
+                      ? 'Format 2 Grup: Juara (1) & Runner-up (2) dari masing-masing grup langsung lolos ke Semifinal (tanpa Perempat Final).'
+                      : activeGroupKeys.length === 3 
+                        ? 'Format 3 Grup: Juara (1) & Runner-up (2) dari tiap grup + 2 Tim Peringkat 3 Terbaik otomatis mengisi Perempat Final.'
+                        : 'Format 4 Grup: Juara (1) dan Runner-Up (2) dari masing-masing grup otomatis masuk ke bagan Perempat Final.'}
                   </p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-4">
-                      <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider border-b border-slate-700 pb-2">Perempat Final</h3>
-                      {knockout.qf.map((match, idx) => (
-                        <div key={match.id} className="bg-slate-900 p-3 rounded-xl border border-slate-700 space-y-2">
-                          <div className="text-[10px] text-slate-500 uppercase font-bold">{match.title}</div>
-                          <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="truncate w-32 text-white">{match.home || 'TBD'}</span>
-                            {isAdmin ? (
-                              <input 
-                                type="text" maxLength={2} placeholder="0"
-                                className="w-7 h-7 text-center bg-slate-950 border border-slate-700 rounded text-white font-bold"
-                                value={match.homeScore} onChange={(e) => handleKnockoutScoreChange('qf', idx, 'homeScore', e.target.value)}
-                              />
-                            ) : (
-                              <span className="font-bold text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">{match.homeScore !== '' ? match.homeScore : '-'}</span>
-                            )}
+                  <div className={`grid grid-cols-1 ${activeGroupKeys.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-6`}>
+                    
+                    {/* HANYA TAMPILKAN PEREMPAT FINAL JIKA BUKAN FORMAT 2 GRUP */}
+                    {activeGroupKeys.length > 2 && (
+                      <div className="space-y-4">
+                        <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider border-b border-slate-700 pb-2">Perempat Final</h3>
+                        {knockout.qf.map((match, idx) => (
+                          <div key={match.id} className="bg-slate-900 p-3 rounded-xl border border-slate-700 space-y-2">
+                            <div className="text-[10px] text-slate-500 uppercase font-bold">{match.title}</div>
+                            <div className="flex items-center justify-between text-xs font-bold">
+                              <span className="truncate w-32 text-white">{match.home || 'TBD'}</span>
+                              {isAdmin ? (
+                                <input 
+                                  type="text" maxLength={2} placeholder="0"
+                                  className="w-7 h-7 text-center bg-slate-950 border border-slate-700 rounded text-white font-bold"
+                                  value={match.homeScore} onChange={(e) => handleKnockoutScoreChange('qf', idx, 'homeScore', e.target.value)}
+                                />
+                              ) : (
+                                <span className="font-bold text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">{match.homeScore !== '' ? match.homeScore : '-'}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between text-xs font-bold">
+                              <span className="truncate w-32 text-white">{match.away || 'TBD'}</span>
+                              {isAdmin ? (
+                                <input 
+                                  type="text" maxLength={2} placeholder="0"
+                                  className="w-7 h-7 text-center bg-slate-950 border border-slate-700 rounded text-white font-bold"
+                                  value={match.awayScore} onChange={(e) => handleKnockoutScoreChange('qf', idx, 'awayScore', e.target.value)}
+                                />
+                              ) : (
+                                <span className="font-bold text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">{match.awayScore !== '' ? match.awayScore : '-'}</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="truncate w-32 text-white">{match.away || 'TBD'}</span>
-                            {isAdmin ? (
-                              <input 
-                                type="text" maxLength={2} placeholder="0"
-                                className="w-7 h-7 text-center bg-slate-950 border border-slate-700 rounded text-white font-bold"
-                                value={match.awayScore} onChange={(e) => handleKnockoutScoreChange('qf', idx, 'awayScore', e.target.value)}
-                              />
-                            ) : (
-                              <span className="font-bold text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">{match.awayScore !== '' ? match.awayScore : '-'}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
 
-                    <div className="space-y-4 md:pt-12">
+                    <div className={`space-y-4 ${activeGroupKeys.length > 2 ? 'md:pt-12' : ''}`}>
                       <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider border-b border-slate-700 pb-2">Semifinal</h3>
                       {knockout.sf.map((match, idx) => (
                         <div key={match.id} className="bg-slate-900 p-3 rounded-xl border border-purple-500/30 space-y-2">
                           <div className="text-[10px] text-purple-400 uppercase font-bold">{match.title}</div>
                           <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="truncate w-32 text-white">{match.home || 'Pemenang QF'}</span>
+                            <span className="truncate w-32 text-white">{match.home || (activeGroupKeys.length === 2 ? `Grup ${idx === 0 ? 'A' : 'B'} Pos 1` : 'Pemenang QF')}</span>
                             {isAdmin ? (
                               <input 
                                 type="text" maxLength={2} placeholder="0"
@@ -1503,7 +1536,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                             )}
                           </div>
                           <div className="flex items-center justify-between text-xs font-bold">
-                            <span className="truncate w-32 text-white">{match.away || 'Pemenang QF'}</span>
+                            <span className="truncate w-32 text-white">{match.away || (activeGroupKeys.length === 2 ? `Grup ${idx === 0 ? 'B' : 'A'} Pos 2` : 'Pemenang QF')}</span>
                             {isAdmin ? (
                               <input 
                                 type="text" maxLength={2} placeholder="0"
@@ -1518,7 +1551,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                       ))}
                     </div>
 
-                    <div className="space-y-4 md:pt-24">
+                    <div className={`space-y-4 ${activeGroupKeys.length > 2 ? 'md:pt-24' : 'md:pt-8'}`}>
                       <h3 className="text-xs font-bold uppercase text-amber-400 tracking-wider border-b border-slate-700 pb-2">Grand Final</h3>
                       <div className="bg-gradient-to-b from-slate-900 to-amber-950/40 p-4 rounded-xl border border-amber-500/50 space-y-3 shadow-2xl">
                         <div className="text-[10px] text-amber-400 uppercase font-bold text-center">🏆 Perebutan Juara</div>
@@ -1735,7 +1768,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
 
                   <div>
                     <div className="mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                      <span>Daftar Grup & Tim Peserta (3 atau 4 Grup)</span>
+                      <span>Daftar Grup & Tim Peserta (2, 3, atau 4 Grup)</span>
                       <span className="text-[11px] text-amber-400">Aktif: {Object.keys(tempClubs).filter(g => tempClubs[g] && tempClubs[g].length > 0).length} Grup</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -1799,7 +1832,7 @@ Jawablah secara ramah, informatif, dan cerdas seputar skenario poin, analisa tim
                               </div>
                             ) : (
                               <div className="text-xs text-slate-500 italic py-4 text-center">
-                                Grup ini dinonaktifkan (Cocok jika hanya memakai 3 Grup).
+                                Grup ini dinonaktifkan (Cocok untuk sistem 2 atau 3 Grup).
                               </div>
                             )}
                           </div>
