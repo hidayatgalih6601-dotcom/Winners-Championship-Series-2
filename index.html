@@ -60,31 +60,30 @@
     let firebaseEnabled = false;
     let firebaseDatabaseUrl = FIREBASE_DATABASE_URLS[0];
 
-    async function connectFirebase() {
-      if (!window.firebase) throw new Error("Firebase SDK belum termuat");
-
-      for (const databaseURL of FIREBASE_DATABASE_URLS) {
+    // Inisialisasi Firebase langsung lewat SDK.
+    // Jangan melakukan GET /.json terlebih dahulu karena request REST ini bisa
+    // tertahan/ditolak oleh rules dan membuat aplikasi masuk ke mode lokal.
+    function connectFirebase() {
+      return new Promise((resolve) => {
         try {
-          const response = await fetch(databaseURL + "/.json", { cache: "no-store" });
-          if (!response.ok) continue;
+          if (!window.firebase) throw new Error("Firebase SDK belum termuat");
 
-          if (firebase.apps.length) {
-            try { await firebase.app().delete(); } catch (_) {}
+          if (!firebase.apps.length) {
+            firebase.initializeApp({ databaseURL: FIREBASE_DATABASE_URLS[0] });
           }
 
-          firebase.initializeApp({ databaseURL });
           firebaseDb = firebase.database();
-          firebaseDatabaseUrl = databaseURL;
+          firebaseDatabaseUrl = FIREBASE_DATABASE_URLS[0];
+          firebaseDb.goOnline();
           firebaseEnabled = true;
-          console.log("Firebase terhubung:", databaseURL);
-          return true;
+          console.log("Firebase SDK siap:", firebaseDatabaseUrl);
+          resolve(true);
         } catch (err) {
-          console.warn("Gagal mencoba Firebase URL:", databaseURL, err);
+          console.error("Firebase gagal diinisialisasi:", err);
+          firebaseEnabled = false;
+          resolve(false);
         }
-      }
-
-      firebaseEnabled = false;
-      return false;
+      });
     }
 
     const firebaseConnectionPromise = connectFirebase();
@@ -314,6 +313,8 @@
 
         if (!firebaseReady || !firebaseEnabled || !firebaseDb || !remoteLoadedRef.current) return;
 
+        // Payload selalu dibentuk dengan struktur yang sama saat membaca/menulis.
+        // Ini mencegah listener memicu write ulang yang tidak perlu.
         const payload = { tournamentName, clubs, matches, topScorers, knockout, publicAccess };
         if (adminPin && (remotePinExistsRef.current || isAdmin)) {
           payload.adminPin = adminPin;
@@ -321,9 +322,12 @@
         const json = JSON.stringify(payload);
         if (json === lastRemoteJsonRef.current) return;
 
+        // Debounce sangat pendek hanya untuk menggabungkan input cepat (mis. mengetik 10).
+        // Perubahan tetap dikirim ke Firebase hampir seketika.
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-          firebaseDb.ref('tournament').set(payload)
+          if (!firebaseDb || !firebaseEnabled) return;
+          firebaseDb.ref('tournament').update(payload)
             .then(() => {
               lastRemoteJsonRef.current = json;
               setFirebaseStatus('online');
@@ -333,7 +337,7 @@
               setFirebaseStatus('error');
               showToast('⚠️ Gagal menyimpan ke Firebase.');
             });
-        }, 250);
+        }, 80);
 
         return () => clearTimeout(saveTimerRef.current);
       }, [tournamentName, clubs, matches, topScorers, knockout, publicAccess, adminPin, isAdmin, firebaseReady]);
@@ -353,6 +357,13 @@
 
             setFirebaseReady(true);
             ref = firebaseDb.ref('tournament');
+
+            // Status koneksi Firebase yang sebenarnya.
+            const connectionRef = firebaseDb.ref('.info/connected');
+            const handleConnection = (snapshot) => {
+              setFirebaseStatus(snapshot.val() === true ? 'online' : 'connecting');
+            };
+            connectionRef.on('value', handleConnection);
 
             const handleValue = (snapshot) => {
               if (!alive) return;
@@ -376,9 +387,11 @@
                 remotePinExistsRef.current = true;
                 setAdminPin(data.adminPin);
                 localStorage.setItem('soccer_admin_pin', data.adminPin);
+                payload.adminPin = data.adminPin;
               } else {
                 remotePinExistsRef.current = false;
               }
+              // Simpan snapshot persis seperti struktur yang akan digunakan saat write.
               const json = JSON.stringify(payload);
               lastRemoteJsonRef.current = json;
               remoteLoadedRef.current = true;
@@ -413,6 +426,8 @@
         return () => {
           alive = false;
           if (ref && ref.__handleValue) ref.off('value', ref.__handleValue);
+          if (firebaseDb) firebaseDb.ref('.info/connected').off('value', handleConnection);
+          clearTimeout(saveTimerRef.current);
         };
       }, []);
 
