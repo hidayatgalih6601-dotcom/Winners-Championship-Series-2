@@ -261,6 +261,28 @@
       const remotePinExistsRef = useRef(false);
       const lastRemoteJsonRef = useRef('');
       const saveTimerRef = useRef(null);
+
+      // Kunci field yang sedang diedit agar echo dari Firebase tidak menimpa
+      // karakter/angka yang baru saja diketik oleh admin.
+      const editingFieldsRef = useRef(new Set());
+      const editTimersRef = useRef({});
+      const matchesRef = useRef(matches);
+      const topScorersRef = useRef(topScorers);
+      const knockoutRef = useRef(knockout);
+
+      useEffect(() => { matchesRef.current = matches; }, [matches]);
+      useEffect(() => { topScorersRef.current = topScorers; }, [topScorers]);
+      useEffect(() => { knockoutRef.current = knockout; }, [knockout]);
+
+      const lockEditingField = (key, duration = 1500) => {
+        editingFieldsRef.current.add(key);
+        clearTimeout(editTimersRef.current[key]);
+        editTimersRef.current[key] = setTimeout(() => {
+          editingFieldsRef.current.delete(key);
+          delete editTimersRef.current[key];
+        }, duration);
+      };
+
       const [aiActiveTab, setAiActiveTab] = useState('news');
       const [aiNewsText, setAiNewsText] = useState('');
       const [isGeneratingNews, setIsGeneratingNews] = useState(false);
@@ -382,6 +404,67 @@
                 knockout: data.knockout ?? knockout,
                 publicAccess: data.publicAccess ?? true
               };
+
+              // Firebase mengirim kembali data yang baru ditulis. Saat admin
+              // sedang mengetik, snapshot lama tidak boleh menimpa input lokal.
+              const locked = editingFieldsRef.current;
+              const currentMatches = matchesRef.current || {};
+              const currentScorers = topScorersRef.current || [];
+              const currentKnockout = knockoutRef.current || {};
+
+              if (payload.matches) {
+                const mergedMatches = {};
+                Object.keys(payload.matches).forEach(group => {
+                  mergedMatches[group] = (payload.matches[group] || []).map(remoteMatch => {
+                    const localMatch = (currentMatches[group] || []).find(m => m.id === remoteMatch.id);
+                    if (!localMatch) return remoteMatch;
+                    const merged = { ...remoteMatch };
+                    ['homeScore', 'awayScore', 'homeCards', 'awayCards', 'status'].forEach(field => {
+                      const key = `match:${group}:${remoteMatch.id}:${field}`;
+                      if (locked.has(key)) merged[field] = localMatch[field];
+                    });
+                    return merged;
+                  });
+                });
+                payload.matches = mergedMatches;
+              }
+
+              if (Array.isArray(payload.topScorers)) {
+                payload.topScorers = payload.topScorers.map(remoteScorer => {
+                  const localScorer = currentScorers.find(s => s.id === remoteScorer.id);
+                  const key = `scorer:${remoteScorer.id}:goals`;
+                  return localScorer && locked.has(key)
+                    ? { ...remoteScorer, goals: localScorer.goals }
+                    : remoteScorer;
+                });
+              }
+
+              if (payload.knockout) {
+                const mergedKnockout = { ...payload.knockout };
+                ['qf', 'sf'].forEach(stage => {
+                  if (Array.isArray(payload.knockout[stage])) {
+                    mergedKnockout[stage] = payload.knockout[stage].map(remoteMatch => {
+                      const localList = currentKnockout[stage] || [];
+                      const localMatch = localList.find(m => m.id === remoteMatch.id);
+                      if (!localMatch) return remoteMatch;
+                      const merged = { ...remoteMatch };
+                      ['homeScore', 'awayScore'].forEach(field => {
+                        const key = `knockout:${stage}:${remoteMatch.id}:${field}`;
+                        if (locked.has(key)) merged[field] = localMatch[field];
+                      });
+                      return merged;
+                    });
+                  }
+                });
+                if (payload.knockout.final && currentKnockout.final) {
+                  mergedKnockout.final = { ...payload.knockout.final };
+                  ['homeScore', 'awayScore'].forEach(field => {
+                    const key = `knockout:final:${field}`;
+                    if (locked.has(key)) mergedKnockout.final[field] = currentKnockout.final[field];
+                  });
+                }
+                payload.knockout = mergedKnockout;
+              }
 
               if (typeof data.adminPin === 'string' && data.adminPin.trim() !== '') {
                 remotePinExistsRef.current = true;
@@ -643,6 +726,7 @@
 
       const handleScoreChange = (group, matchId, type, value) => {
         if (!isAdmin) return;
+        lockEditingField(`match:${group}:${matchId}:${type}`);
         const maxValue = 99;
         if (type !== 'status' && value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > maxValue)) return;
         setMatches(prev => ({
@@ -653,6 +737,8 @@
 
       const handleKnockoutScoreChange = (stage, index, type, value) => {
         if (!isAdmin) return;
+        const matchId = stage === 'final' ? 'final' : (knockoutRef.current?.[stage]?.[index]?.id || index);
+        lockEditingField(`knockout:${stage}:${stage === 'final' ? '' : matchId}${stage === 'final' ? '' : ':'}${type}`);
         if (value !== '' && (!/^\d+$/.test(value) || parseInt(value, 10) < 0 || parseInt(value, 10) > 99)) return;
 
         if (stage === 'qf' || stage === 'sf') {
@@ -724,6 +810,7 @@
 
       const handleUpdateGoals = (id, delta) => {
         if (!isAdmin) return;
+        lockEditingField(`scorer:${id}:goals`);
         setTopScorers(prev => {
           const updated = prev.map(s => s.id === id ? { ...s, goals: Math.max(0, s.goals + delta) } : s);
           return updated.sort((a, b) => b.goals - a.goals);
